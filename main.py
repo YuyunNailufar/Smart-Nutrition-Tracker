@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 import uvicorn
 
-from inference import NutritionInferenceEngine
+from inference import NutritionInferenceEngine, rekomendasikan_menu_llm
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +108,35 @@ def predict(payload: NutrisiInput):
         data = payload.model_dump(exclude={"akg_ref"})
         hasil = engine.predict(data, akg_ref=payload.akg_ref)
         return hasil
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+class PrediksiDenganRekomendasiResponse(BaseModel):
+    kelas             : int
+    label             : str
+    probabilitas      : dict
+    confidence        : float
+    rekomendasi       : str
+    rekomendasi_menu  : str
+
+
+@app.post("/predict-with-recommendation", response_model=PrediksiDenganRekomendasiResponse)
+def predict_with_recommendation(
+    payload       : NutrisiInput,
+    nama_makanan  : str = "bahan makanan",
+    usia_bulan    : int = 12
+):
+    """
+    Klasifikasi gizi + rekomendasi menu dari AI.
+
+    Mengembalikan semua output /predict ditambah rekomendasi menu
+    yang di-generate oleh Claude API berdasarkan hasil klasifikasi.
+    """
+    try:
+        data   = payload.model_dump(exclude={"akg_ref"})
+        hasil  = engine.predict(data, akg_ref=payload.akg_ref)
+        menu   = rekomendasikan_menu_llm(nama_makanan, hasil, usia_bulan)
+        return {**hasil, "rekomendasi_menu": menu}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

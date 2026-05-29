@@ -1,9 +1,14 @@
 import json
+import os
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import google.generativeai as genai
+from dotenv import load_dotenv
 from tensorflow import keras
 from tensorflow.keras import layers
+
+load_dotenv()
 
 
 # ---------------------------------------------------------------------------
@@ -77,14 +82,6 @@ class FocalLoss(keras.losses.Loss):
 # ---------------------------------------------------------------------------
 
 class NutritionInferenceEngine:
-    """
-    Engine inference untuk Smart Nutrition Tracker.
-
-    Contoh penggunaan:
-        engine = NutritionInferenceEngine('smart_nutrition_tracker.keras',
-                                          'scaler_params.json')
-        result = engine.predict({'energi_kal': 154, 'protein_g': 12.4, ...})
-    """
 
     def __init__(self, model_path: str, scaler_path: str):
         with open(scaler_path) as f:
@@ -139,16 +136,6 @@ class NutritionInferenceEngine:
         return ((x - self.mean) / (self.std + 1e-8)).reshape(1, -1)
 
     def predict(self, data: dict, akg_ref: dict = None) -> dict:
-        """
-        Prediksi kelas gizi untuk satu bahan makanan (per 100g).
-
-        Parameter:
-            data    : dict {nama_fitur: nilai_nutrisi}
-            akg_ref : dict AKG referensi untuk hitung status (opsional)
-
-        Return:
-            dict berisi kelas, label, probabilitas per kelas, confidence, dan rekomendasi
-        """
         x_sc  = self._preprocess(data, akg_ref)
         probs = self.model.predict(x_sc, verbose=0)[0]
         kelas = int(np.argmax(probs))
@@ -170,9 +157,6 @@ class NutritionInferenceEngine:
         }
 
     def predict_batch(self, df_input: pd.DataFrame, akg_ref: dict = None) -> pd.DataFrame:
-        """
-        Prediksi batch untuk DataFrame berisi banyak bahan makanan.
-        """
         rows = []
         for _, row in df_input.iterrows():
             rows.append(self._preprocess(row.to_dict(), akg_ref)[0])
@@ -185,3 +169,81 @@ class NutritionInferenceEngine:
         result['pred_label']      = [self.label_map[k] for k in kelas]
         result['pred_confidence'] = probs.max(axis=1).round(4)
         return result
+
+
+# ---------------------------------------------------------------------------
+# Generative AI — Rekomendasi Menu via Claude API
+# ---------------------------------------------------------------------------
+
+def rekomendasikan_menu_llm(
+    nama_makanan: str,
+    hasil_prediksi: dict,
+    usia_bulan: int = 12
+) -> str:
+
+    api_key = os.environ.get('GEMINI_API_KEY', '')
+
+    if not api_key:
+        return "GEMINI_API_KEY belum diset."
+
+    label = hasil_prediksi['label']
+    confidence = hasil_prediksi['confidence']
+
+    prob_str = ', '.join([
+        f"{k}: {v}"
+        for k, v in hasil_prediksi['probabilitas'].items()
+    ])
+
+    prompt = f"""
+Kamu adalah ahli gizi anak Indonesia.
+
+Bahan makanan '{nama_makanan}' telah diklasifikasikan oleh model machine learning dengan hasil:
+- Kelas gizi: {label} (confidence: {confidence:.2%})
+- Distribusi probabilitas: {prob_str}
+
+Berikan rekomendasi menu praktis untuk anak usia {usia_bulan} bulan menggunakan bahan ini.
+
+Sertakan:
+1. Contoh menu
+2. Bahan pendamping
+3. Cara penyajian
+4. Catatan nutrisi singkat
+
+Jawab dalam Bahasa Indonesia, singkat dan praktis.
+"""
+
+    try:
+        genai.configure(api_key=api_key)
+
+        model = genai.GenerativeModel("gemini-1.5-flash")
+
+        response = model.generate_content(prompt)
+
+        return response.text
+
+    except Exception:
+        if label == "Rendah":
+            return (
+                f"{nama_makanan} sebaiknya dikombinasikan dengan "
+                "sumber protein, sayur, dan buah agar kebutuhan "
+                "nutrisi anak lebih seimbang."
+            )
+
+        elif label == "Cukup":
+            return (
+                f"{nama_makanan} cukup baik untuk menu anak. "
+                "Tambahkan variasi sayur, buah, atau protein lain "
+                "agar asupan lebih lengkap."
+            )
+
+        elif label == "Baik":
+            return (
+                f"{nama_makanan} baik digunakan dalam menu harian anak. "
+                "Sajikan dengan karbohidrat dan sayur sesuai usia anak."
+            )
+
+        else:
+            return (
+                f"{nama_makanan} sangat baik untuk menu anak usia dini. "
+                "Gunakan variasi penyajian agar anak tidak bosan."
+            )
