@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 import uvicorn
 
-from inference import NutritionInferenceEngine, rekomendasikan_menu_llm
+from nutrition_inference import NutritionInferenceEngine, rekomendasikan_menu_llm
 
 
 # ---------------------------------------------------------------------------
