@@ -195,27 +195,24 @@ def rekomendasikan_menu_llm(
     ])
 
     prompt = f"""
-Kamu adalah ahli gizi anak Indonesia.
+Kamu adalah ahli gizi anak Indonesia yang berpengalaman.
 
-Bahan makanan '{nama_makanan}' telah diklasifikasikan oleh model machine learning dengan hasil:
-- Kelas gizi: {label} (confidence: {confidence:.2%})
-- Distribusi probabilitas: {prob_str}
+Bahan makanan '{nama_makanan}' memiliki klasifikasi gizi {label} (confidence: {confidence:.2%}) berdasarkan analisis model machine learning untuk anak usia {usia_bulan} bulan.
 
-Berikan rekomendasi menu praktis untuk anak usia {usia_bulan} bulan menggunakan bahan ini.
+Berikan rekomendasi menu praktis secara langsung dengan format berikut:
 
-Sertakan:
 1. Contoh menu
 2. Bahan pendamping
-3. Cara penyajian
+3. Cara penyajian sesuai usia
 4. Catatan nutrisi singkat
 
-Jawab dalam Bahasa Indonesia, singkat dan praktis.
+Gunakan bahasa Indonesia yang profesional, padat, dan langsung ke poin. Jangan ada kalimat pembuka atau sapaan.
 """
 
     try:
         genai.configure(api_key=api_key)
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-3.5-flash")
 
         response = model.generate_content(prompt)
 
