@@ -130,7 +130,7 @@ def predict_with_recommendation(
     Klasifikasi gizi + rekomendasi menu dari AI.
 
     Mengembalikan semua output /predict ditambah rekomendasi menu
-    yang di-generate oleh Claude API berdasarkan hasil klasifikasi.
+    yang di-generate oleh Gemini API berdasarkan hasil klasifikasi.
     """
     try:
         data   = payload.model_dump(exclude={"akg_ref"})
